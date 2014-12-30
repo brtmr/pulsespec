@@ -23,18 +23,20 @@
 #define DISPLAYHEIGHT 16
 #define BUFSIZE 1024
 #define SAMPLERATE 44100
-#define MAXDB 2
+#define MAXDB 3
 #define MINDB -5
 #define SLEEP_TIME 100000
 
 double absval (fftw_complex n);
 void make_window(double *window);
 uint8_t db_to_display(double db);
+//double average_bucket(double* data, size_t length);
 
 const double SCALE_FACTOR = (double)(DISPLAYHEIGHT-1)/(double)(MAXDB-MINDB);
 const int OUTSIZE = BUFSIZE/2 + 1;
 const int MAXF = BUFSIZE/4;
 const double base_freq = SAMPLERATE / BUFSIZE;
+const size_t BUCKETSIZE = (BUFSIZE/4)/(DISPLAYLENGTH+1);
 
 int main(int argc, char** argv){
 
@@ -69,6 +71,7 @@ int main(int argc, char** argv){
 
     float buf[BUFSIZE];
     double *in;
+    double *db_buf;
     fftw_complex *out;
     fftw_plan plan;
     in   = (double *) malloc(sizeof(double)*BUFSIZE);
@@ -92,12 +95,19 @@ int main(int argc, char** argv){
         plan = fftw_plan_dft_r2c_1d( BUFSIZE , in, out, FFTW_ESTIMATE);
         fftw_execute( plan );
 
+        /* calculate log10(abs(x)) then adjust to arduino scale */
+        for (int i = 0 ; i < (DISPLAYLENGTH) ; i++) {
+            double sum = 0;
 
-        /* convert to decibels, then adjust to arduino scale */
-        for (int i = 1 ; i < (DISPLAYLENGTH+1) ; i++) {
-            double db = log10(absval(out[i*(MAXF/(DISPLAYLENGTH+1))]));
-            buckets[i-1] = db_to_display(db);
+            for (int j = (i*BUCKETSIZE); j<((i+1)*BUCKETSIZE); j++) {
+                sum += log10(absval(out[j+1]));
+            }
+            double db = sum / (double) BUCKETSIZE;
+            buckets[i] = (db_to_display(db));
+
+            //printf("%f %d -- ", db, buckets[i]);
         }
+        ////printf("\n");
 
         /* write to arduino */
         int w = write(serial_fd, buckets, DISPLAYLENGTH);
@@ -126,9 +136,21 @@ void make_window(double *window) {
 }
 
 uint8_t db_to_display(double db){
+    if (db<MINDB) return 0;
+    if (db>MAXDB) return 15;
+    if (db == INFINITY || db == -INFINITY || db == NAN) return 0;
     double pos = db - MINDB;
-    uint8_t res = (int) pos * SCALE_FACTOR;
-    if (res<0) return 0;
-    if (res>(DISPLAYHEIGHT-1)) return (DISPLAYHEIGHT-1);
-    else return res;
+    uint8_t res = (uint8_t) (pos * SCALE_FACTOR);
+    return res;
 }
+
+/*
+   double average_bucket(double* data, size_t length){
+   double sum = 0;
+   for (int i=0; i<length; i++) {
+   sum += data[i];
+   }
+   double res = sum / (double) length;
+   return res;
+   }
+   */
