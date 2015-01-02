@@ -13,7 +13,6 @@
 #include <pulse/error.h>
 #include<fftw3.h>
 
-
 #ifndef M_PI
 #    define M_PI 3.14159265358979323846
 #endif
@@ -37,6 +36,7 @@ const int OUTSIZE = BUFSIZE/2 + 1;
 const int MAXF = BUFSIZE/4;
 const double base_freq = SAMPLERATE / BUFSIZE;
 const size_t BUCKETSIZE = (BUFSIZE/4)/(DISPLAYLENGTH+1);
+char  begin[1] = "\x10";
 
 int main(int argc, char** argv){
 
@@ -60,8 +60,16 @@ int main(int argc, char** argv){
     int ret=0;
     int error;
     /* Create the recording stream */
-    if (!(stream = pa_simple_new(NULL, argv[0], PA_STREAM_RECORD, NULL,
-                    "record", &sample_spec, NULL, NULL, &error))) {
+    if (!(stream = pa_simple_new(
+                    NULL,
+                    argv[0],
+                    PA_STREAM_RECORD,
+                    NULL,
+                    "record",
+                    &sample_spec,
+                    NULL,
+                    NULL,
+                    &error))) {
         fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
         goto finish;
     }
@@ -76,9 +84,8 @@ int main(int argc, char** argv){
     fftw_plan plan;
     in   = (double *) malloc(sizeof(double)*BUFSIZE);
     out  = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*( OUTSIZE ));
-
-    //the lcd display
     uint8_t buckets[DISPLAYLENGTH];
+
     for(;;){
         /* record new data ... */
         if (pa_simple_read(stream, buf, sizeof(buf), &error) < 0) {
@@ -110,6 +117,8 @@ int main(int argc, char** argv){
         ////printf("\n");
 
         /* write to arduino */
+        if (1 !=write(serial_fd, begin, 1)) goto finish;
+
         int w = write(serial_fd, buckets, DISPLAYLENGTH);
         if (w<DISPLAYLENGTH) goto finish;
     }
@@ -143,14 +152,3 @@ uint8_t db_to_display(double db){
     uint8_t res = (uint8_t) (pos * SCALE_FACTOR);
     return res;
 }
-
-/*
-   double average_bucket(double* data, size_t length){
-   double sum = 0;
-   for (int i=0; i<length; i++) {
-   sum += data[i];
-   }
-   double res = sum / (double) length;
-   return res;
-   }
-   */

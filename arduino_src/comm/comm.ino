@@ -1,12 +1,15 @@
 #include <LiquidCrystal.h>
 #define LENGTH 16
 #define EMPTYCHAR B00010000
-#define BAR_ROW   0B11111
+#define BAR_ROW   0B11011
+
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 byte single_character[8];
 int counter;
-char signal[16];
+char signal[LENGTH];
+char remainig[LENGTH+1];
 boolean redraw;
+boolean found;
 
 /* creates a character set of 8 bars of different height */
 void setup(){
@@ -25,20 +28,16 @@ void setup(){
 
 void loop(){
   redraw = false;
-  /*
-  TODO: if Serial.available() is not a multiple of 16, 
-  send a signal to reset the connection.
-  */
-  while (Serial.available() > (LENGTH-1)){
-    Serial.readBytes(signal, LENGTH);
-    redraw = true;
+  while (Serial.available() >= LENGTH){
+    found = Serial.findUntil("\x10","?");
+  }
+  if (found) {
+    redraw =(Serial.readBytes(signal,LENGTH)==LENGTH);
+  }
+  for (int i=0; i<LENGTH; i++) {
+    draw_bar(signal[i],i);
   }
 
-  if (redraw) {
-    for (int i=0; i<LENGTH; i++) {
-      draw_bar(signal[i],i);
-    }
-  }
 }
 
 void draw_bar(int height, int col){
