@@ -36,12 +36,10 @@ const int OUTSIZE = BUFSIZE/2 + 1;
 const int MAXF = BUFSIZE/4;
 const double base_freq = SAMPLERATE / BUFSIZE;
 const size_t BUCKETSIZE = (BUFSIZE/4)/(DISPLAYLENGTH+1);
-char  begin[1] = "\x10";
 
 int main(int argc, char** argv){
-
     /* open the serial device */
-    int serial_fd = open(SERIAL_DEVICE, O_WRONLY);
+    int serial_fd = open(SERIAL_DEVICE, O_RDWR);
     if (serial_fd == -1) {
         printf("failed to open serial device. \n");
         return -1;
@@ -71,7 +69,7 @@ int main(int argc, char** argv){
                     NULL,
                     &error))) {
         fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
-        goto finish;
+        exit(-1);
     }
 
     double window[BUFSIZE];
@@ -84,13 +82,14 @@ int main(int argc, char** argv){
     fftw_plan plan;
     in   = (double *) malloc(sizeof(double)*BUFSIZE);
     out  = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*( OUTSIZE ));
-    uint8_t buckets[DISPLAYLENGTH];
+    uint8_t buckets[DISPLAYLENGTH+1];
+    buckets[0]=0x10;
 
     for(;;){
         /* record new data ... */
         if (pa_simple_read(stream, buf, sizeof(buf), &error) < 0) {
             fprintf(stderr, __FILE__": pa_simple_read() failed: %s\n", pa_strerror(error));
-            goto finish;
+            break;
         }
 
         /* copy it bufto a double array*/
@@ -110,20 +109,12 @@ int main(int argc, char** argv){
                 sum += log10(absval(out[j+1]));
             }
             double db = sum / (double) BUCKETSIZE;
-            buckets[i] = (db_to_display(db));
-
-            //printf("%f %d -- ", db, buckets[i]);
+            buckets[i+1] = (db_to_display(db));
         }
-        ////printf("\n");
-
         /* write to arduino */
-        if (1 !=write(serial_fd, begin, 1)) goto finish;
-
-        int w = write(serial_fd, buckets, DISPLAYLENGTH);
-        if (w<DISPLAYLENGTH) goto finish;
+        if (write(serial_fd, buckets, (DISPLAYLENGTH+1))!=(DISPLAYLENGTH+1))
+            break;
     }
-
-finish:
     /* cleanup and exit */
     free(in);
     fftw_free(out);
@@ -131,7 +122,6 @@ finish:
         fftw_destroy_plan( plan );
     if (stream)
         pa_simple_free(stream);
-    return ret;
 }
 
 double absval (fftw_complex n){

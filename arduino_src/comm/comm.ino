@@ -27,17 +27,13 @@ void setup(){
 }
 
 void loop(){
-  redraw = false;
-  while (Serial.available() >= LENGTH){
-    found = Serial.findUntil("\x10","?");
+  while (Serial.read() != '\x10'){  
   }
-  if (found) {
-    redraw =(Serial.readBytes(signal,LENGTH)==LENGTH);
+  if (Serial.readBytes(signal,LENGTH)==LENGTH) {
+    for (int i=0; i<LENGTH; i++) {
+      draw_bar(signal[i],i);
+    }
   }
-  for (int i=0; i<LENGTH; i++) {
-    draw_bar(signal[i],i);
-  }
-
 }
 
 void draw_bar(int height, int col){
@@ -55,3 +51,5 @@ void draw_bar(int height, int col){
     lcd.write(byte(EMPTYCHAR));
   }
 }
+
+
